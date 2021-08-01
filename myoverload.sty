@@ -9,7 +9,7 @@
 \def\enddelim{\PackageError{myoverload.sty}{This command is not intended to be used alone}\@ehd}
 \let\@xp\expandafter
 
-\newcommand{\overload}[1]{%
+\newcommand{\newoverload}[1]{%
 	\@xp\newcount\csname c@#1\endcsname\relax
 	\csname c@#1\endcsname=\z@\relax
 	\@xp\def\csname #1\endcsname##1{%
