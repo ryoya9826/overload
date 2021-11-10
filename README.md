@@ -1,4 +1,4 @@
- ## myoverload package
+ ## overload package
 
 =================
 
@@ -15,12 +15,18 @@
 
 `\renewoverload`追加．
 
+#### v1.0 2021/11/10 
+
+Preparation for uploading to CTAN.
+
 ### 使用方法
 まず
 ```latex
 \newoverload{hoge}
 ```
-のようにしてコントロールシークエンス`\hoge` を登録してください．その後；
+のようにしてコントロールシークエンス`\hoge` を登録してください．
+すでに定義されているコントロールシークエンスを使いたい場合は`\renewoverload`を使用してください．
+その後；
 ```latex
 \addoverload{hoge}{0}{Nothing!}
 \addoverload{hoge}{1}{First argument is #1!}
@@ -32,12 +38,12 @@
 ```
 で，\<num\>は0から9までの整数であることが想定されています．
   
-登録したコントロールシークエンスは引数の末尾に`\enddelim` をつけて使用する必要があります．
+登録したコントロールシークエンスは引数の末尾に`\delimend` をつけて使用する必要があります．
  この状況下では；
  ```latex
- \hoge\enddelim
- \hoge{foo}\enddelim
- \hoge{foo}{bar}{\enddelim}
+ \hoge\delimend
+ \hoge{foo}\delimend
+ \hoge{foo}{bar}{\delimend}
   ```
   はそれぞれ；
   ```
@@ -46,6 +52,15 @@
   First argument is foo! Second argument is bar!
   ```
   に展開されます．
+  
+  `\delimend`は上記のような引数の終端を表す以外の使い方をした場合は無視されるだけですが， 制約として各引数の先頭に`\delimend`が来ることは禁止されています．
+  どうしても引数の先頭に`\delimend`を配置したい場合は；
+  ```latex
+  \hoge{{\delimend} aaa}\delimend
+  ```
+  のようにしてください．
+  
+  また，各引数においてif系列のコマンドを使用する際には注意が必要です．
   
 ### ライセンス
 
