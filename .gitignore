@@ -1,0 +1,11 @@
+# LaTeX / pdfTeX
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# ローカル検証で生成する PDF（必要ならコメントアウトしてコミット可）
+*.pdf
