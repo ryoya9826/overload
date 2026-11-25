@@ -1,0 +1,174 @@
+% overload.sty の自己検査つき試験。
+% 期待と異なる結果が1つでもあれば、最後に LaTeX エラーを出して失敗させる。
+% 実行例: (リポジトリ直下で) TEXINPUTS=.: pdflatex -interaction=nonstopmode -halt-on-error test/overload-test.tex
+\documentclass{article}
+\usepackage{overload}
+\makeatletter
+
+\newcount\failcount
+% #1: 試験名、#2: 実際の値を持つマクロ、#3: 期待する本体
+\newcommand\expect[3]{%
+  \def\@expected{#3}%
+  \ifx#2\@expected
+    \typeout{PASS: #1}%
+  \else
+    \global\advance\failcount\@ne
+    \typeout{FAIL: #1: got [\meaning#2] want [\detokenize{#3}]}%
+  \fi
+}
+% #1: 試験名、#2: 実際の箱、#3: 期待する箱(幅で比較する)
+\newcommand\expectwd[3]{%
+  \ifdim\wd#2=\wd#3
+    \typeout{PASS: #1}%
+  \else
+    \global\advance\failcount\@ne
+    \typeout{FAIL: #1: got \the\wd#2\space want \the\wd#3}%
+  \fi
+}
+% #1: 試験名、#2: パッケージまたは LaTeX のエラーを起こすはずのコード
+\newcommand\expecterror[2]{%
+  \begingroup
+    \global\let\lasterror\relax
+    \def\PackageError##1##2##3{\gdef\lasterror{##2}}%
+    \def\@latex@error##1##2{\gdef\lasterror{##1}}%
+    \setbox0\hbox{#2}%
+    \ifx\lasterror\relax
+      \global\advance\failcount\@ne
+      \typeout{FAIL: #1: no error raised}%
+    \else
+      \ifdim\wd0=\z@
+        \typeout{PASS: #1}%
+      \else
+        \global\advance\failcount\@ne
+        \typeout{FAIL: #1: error raised but stray output of width \the\wd0}%
+      \fi
+    \fi
+  \endgroup
+}
+
+% --- 基本の分岐。名前は {\hoge} と {hoge} のどちらでも書ける ---
+\newoverload{\hoge}
+\addoverload{\hoge}{0}{\gdef\result{0}}
+\addoverload{hoge}{1}{\gdef\result{1:#1}}
+\addoverload{\hoge}{2}{\gdef\result{2:#1|#2}}
+
+% --- 本体が引数を2回使う場合と、引数を実行する場合 ---
+\newoverload{pair}
+\addoverload{pair}{1}{[1:#1]}
+\addoverload{pair}{2}{[2:#1|#2|#1]}
+\newoverload{\raw}
+\addoverload{\raw}{2}{\xdef\result{\detokenize{#1|#2|#1}}}
+\newoverload{\exec}
+\addoverload{\exec}{1}{#1}
+
+% --- 登録に抜けがある場合 ---
+\newoverload{\gap}
+\addoverload{\gap}{1}{\gdef\result{g1}}
+\addoverload{\gap}{3}{\gdef\result{g3}}
+
+% --- 本体が別のオーバーロード呼び出しで終わる場合と、引数9個 ---
+\newoverload{\fwd}
+\addoverload{\fwd}{1}{\pair{#1}}
+\newoverload{\nine}
+\addoverload{\nine}{9}{\gdef\result{#1#2#3#4#5#6#7#8#9}}
+
+% --- カーネルの内部名 \e@alloc と衝突しないこと ---
+\newoverload{alloc}
+\addoverload{alloc}{0}{}
+\newcount\aftercount
+
+\begin{document}
+
+\hoge \expect{0 args}\result{0}
+\hoge{A}\expect{1 arg}\result{1:A}
+\hoge{A}{B}\expect{2 args}\result{2:A|B}
+\hoge{}\expect{empty arg}\result{1:}
+\hoge{a\par b}\expect{par in arg}\result{1:a\par b}
+
+% 最大個数を超えるグループは取り込まない
+\setbox0\hbox{\hoge{A}{B}{C}}\setbox2\hbox{C}
+\expect{stop at max: dispatch}\result{2:A|B}
+\expectwd{stop at max: rest kept}{0}{2}
+
+% 空白で収集が止まり、空白は残る
+\setbox0\hbox{x\hoge{A} {B}}\setbox2\hbox{x B}
+\expect{space stops: dispatch}\result{1:A}
+\expectwd{space stops: space kept}{0}{2}
+
+% \enddelim による明示的な終端と、旧来の書き方
+\setbox0\hbox{\hoge{A}\enddelim{B}}\setbox2\hbox{B}
+\expect{enddelim: dispatch}\result{1:A}
+\expectwd{enddelim: rest kept}{0}{2}
+\hoge\enddelim \expect{legacy 0}\result{0}
+\hoge{A}{B}\enddelim \expect{legacy 2}\result{2:A|B}
+
+% 入れ子の呼び出しで引数が壊れない
+\setbox0\hbox{\pair{\pair{A}}{B}}\setbox2\hbox{[2:[1:A]|B|[1:A]]}
+\expectwd{nested call}{0}{2}
+\raw{\pair{A}}{B}
+\edef\want{\detokenize{\pair{A}|B|\pair{A}}}
+\ifx\result\want \typeout{PASS: args passed as tokens}\else
+  \global\advance\failcount\@ne
+  \typeout{FAIL: args passed as tokens: got [\meaning\result]}\fi
+
+% 本体末尾の呼び出しが、元の呼び出しの後ろのグループを奪わない
+\setbox0\hbox{\fwd{A}{B}}\setbox2\hbox{[1:A]B}
+\expectwd{forwarding body stops}{0}{2}
+
+% 引数9個。10個目は取り込まない
+\setbox0\hbox{\nine{a}{b}{c}{d}{e}{f}{g}{h}{i}{j}}\setbox2\hbox{j}
+\expect{9 args}\result{abcdefghi}
+\expectwd{9 args: 10th kept}{0}{2}
+
+% 引数に # を含められる
+\exec{\def\x#1{<#1>}\xdef\result{\x{q}}}
+\expect{hash in arg}\result{<q>}
+
+% \edef では展開されずに残る
+\edef\moved{\hoge{A}}
+\edef\want{\noexpand\hoge{A}}
+\ifx\moved\want \typeout{PASS: protected in edef}\else
+  \global\advance\failcount\@ne
+  \typeout{FAIL: protected in edef: got [\meaning\moved]}\fi
+
+% 定義はグループに局所的
+\begingroup
+  \newoverload{\localcmd}\addoverload{\localcmd}{0}{}%
+\endgroup
+\@ifundefined{localcmd}{\typeout{PASS: local to group}}{%
+  \global\advance\failcount\@ne \typeout{FAIL: local to group}}
+
+% エラーになるべき呼び出しと定義
+\expecterror{unregistered count (2 of 1,3)}{\gap{A}{B}}
+\expecterror{unregistered count (0 of 1,3)}{\gap}
+\gap{A}{B}{C}\expect{gap 3}\result{g3}
+\expecterror{newoverload on defined}{\newoverload{\hoge}}
+\expecterror{newoverload on relax}{\newoverload{\relax}}
+\expecterror{newoverload on end-name}{\newoverload{\endfoo}}
+\expecterror{renewoverload on undefined}{\renewoverload{\nosuchcommand}}
+\expecterror{addoverload undeclared}{\addoverload{\undeclared}{1}{stray #1}}
+\expecterror{addoverload arity 10}{\addoverload{\hoge}{10}{stray}}
+\expecterror{addoverload negative}{\addoverload{\hoge}{-1}{stray}}
+\expecterror{addoverload duplicate}{\addoverload{\hoge}{1}{stray #1}}
+
+% \renewoverload は登録済みの本体を消す
+\renewoverload{\gap}
+\addoverload{\gap}{0}{\gdef\result{new0}}
+\gap \expect{renew: new body}\result{new0}
+\setbox0\hbox{\gap{A}}\setbox2\hbox{A}
+\expectwd{renew: old arity gone}{0}{2}
+
+% 見出し(目次への書き出し)と表のセルで使える
+\tableofcontents
+\section{Title \pair{S}{T}}
+\begin{tabular}{ll}
+  \pair{A} & \pair{A}{B} \\
+  \pair{C}{D} & x
+\end{tabular}
+
+\ifnum\failcount>\z@
+  \PackageError{overload-test}{\the\failcount\space test(s) failed}{See the FAIL lines above.}
+\else
+  \typeout{ALL TESTS PASSED}
+\fi
+\end{document}

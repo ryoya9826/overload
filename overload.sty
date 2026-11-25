@@ -1,0 +1,161 @@
+% ----------------------------------------------------------------------------
+% overload.sty
+%
+% Macros overloaded on the number of arguments
+%
+% Author:  Ryoya Ando
+% URL:     https://ryoya9826.github.io/
+%
+% Copyright (C) 2021-2026 Ryoya Ando
+%
+% This work is released under the MIT License.
+% See the file LICENSE for the full license text.
+%
+% This work consists of the files overload.sty, overload-doc.tex,
+% overload-doc.pdf, test/overload-test.tex, README.md and LICENSE.
+%
+% Description:
+% This package defines commands whose body is selected by the number of
+% brace-delimited arguments that follow them. The following brace groups are
+% counted by lookahead, so no terminator is needed. The arguments are passed
+% to the selected body as token lists, so nested calls work as expected.
+%
+% Usage:
+% \usepackage{overload}
+% \newoverload{\cmd}
+% \addoverload{\cmd}{0}{body without arguments}
+% \addoverload{\cmd}{2}{body using #1 and #2}
+% \cmd        -> body for zero arguments
+% \cmd{A}{B}  -> body for two arguments
+% ----------------------------------------------------------------------------
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{overload}[2026/11/25 v2.0 Macros overloaded on the number of arguments]
+
+\newcount\overload@cnt
+
+
+\def\overload@setname#1{%
+  \edef\overload@name{\expandafter\overload@stripbs\string#1\@nil}%
+}
+\def\overload@stripbs#1#2\@nil{\if#1\@backslashchar\else#1\fi#2}
+
+\def\overload@install{%
+  \overload@clear
+  \expandafter\def\csname overload@max@\overload@name\endcsname{0}%
+  \protected\expandafter\edef\csname\overload@name\endcsname{%
+    \noexpand\overload@start{\overload@name}%
+  }%
+}
+
+\def\overload@clear{%
+  \@tfor\overload@tmp:=0123456789\do{%
+    \expandafter\let
+      \csname overload@def@\overload@name @\overload@tmp\endcsname\@undefined
+  }%
+}
+
+\def\overload@start#1{%
+  \def\overload@name{#1}%
+  \overload@cnt\z@
+  \let\overload@args\@empty
+  \overload@peek
+}
+
+\def\overload@peek{%
+  \ifnum\overload@cnt<\csname overload@max@\overload@name\endcsname\relax
+    \expandafter\overload@peek@i
+  \else
+    \expandafter\overload@dispatch
+  \fi
+}
+% \futurelet は空白を読み飛ばさない。引数の間に空白があれば、そこで収集を終える。
+\def\overload@peek@i{\futurelet\overload@tok\overload@peek@ii}
+\def\overload@peek@ii{%
+  \ifx\overload@tok\bgroup
+    \expandafter\overload@grab
+  \else
+    \expandafter\overload@dispatch
+  \fi
+}
+
+\long\def\overload@grab#1{%
+  \advance\overload@cnt\@ne
+  \edef\overload@args{\unexpanded\expandafter{\overload@args{#1}}}%
+  \overload@peek
+}
+
+\def\overload@dispatch{%
+  \ifcsname overload@def@\overload@name @\the\overload@cnt\endcsname
+    \expandafter\@firstoftwo
+  \else
+    \expandafter\@secondoftwo
+  \fi
+  {\expandafter\overload@call
+     \csname overload@def@\overload@name @\the\overload@cnt\endcsname}%
+  {\PackageError{overload}{%
+     No overload of \@backslashchar\overload@name\space
+     takes \the\overload@cnt\space argument(s)}{%
+     Register that number of arguments with \string\addoverload,\MessageBreak
+     or check the braces that follow the command.}}%
+}
+
+\def\overload@call#1{\expandafter#1\overload@args\overload@stop}
+\protected\def\overload@stop{}
+
+\newcommand\newoverload[1]{%
+  \overload@setname{#1}%
+  \expandafter\@ifdefinable\csname\overload@name\endcsname{\overload@install}%
+}
+
+\newcommand\renewoverload[1]{%
+  \overload@setname{#1}%
+  \@ifundefined{\overload@name}{%
+    \PackageError{overload}{%
+      Command \@backslashchar\overload@name\space undefined}{%
+      Use \string\newoverload\space to define a new command.}%
+  }{}%
+  \overload@install
+}
+
+\newcommand\addoverload[2]{%
+  \overload@setname{#1}%
+  \edef\overload@n{\number\numexpr#2\relax}%
+  \let\overload@next\@gobble
+  \ifcsname overload@max@\overload@name\endcsname
+    \ifnum\overload@n<\z@
+      \overload@badarity
+    \else\ifnum\overload@n>9 %
+      \overload@badarity
+    \else\ifcsname overload@def@\overload@name @\overload@n\endcsname
+      \PackageError{overload}{%
+        \@backslashchar\overload@name\space already has an overload
+        for \overload@n\space argument(s)}{%
+        Use \string\renewoverload\space to start over.}%
+    \else
+      \ifnum\overload@n>\csname overload@max@\overload@name\endcsname\relax
+        \expandafter\let\csname overload@max@\overload@name\endcsname\overload@n
+      \fi
+      \edef\overload@next{%
+        \noexpand\newcommand
+        \expandafter\noexpand
+          \csname overload@def@\overload@name @\overload@n\endcsname
+        [\overload@n]%
+      }%
+    \fi\fi\fi
+  \else
+    \PackageError{overload}{%
+      \@backslashchar\overload@name\space is not an overloaded command}{%
+      Declare it with \string\newoverload\space first.}%
+  \fi
+  \overload@next
+}
+\def\overload@badarity{%
+  \PackageError{overload}{%
+    The number of arguments must be between 0 and 9}{%
+    TeX macros take at most nine arguments.}%
+}
+
+\protected\def\enddelim{}
+
+\endinput
