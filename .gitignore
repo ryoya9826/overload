@@ -1,11 +1,14 @@
-# LaTeX / pdfTeX
 *.aux
-*.fdb_latexmk
-*.fls
 *.log
 *.out
-*.synctex.gz
 *.toc
+*.dvi
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+*.listing
+out/
+.DS_Store
 
-# ローカル検証で生成する PDF（必要ならコメントアウトしてコミット可）
-*.pdf
+# 試験の出力。ドキュメントの PDF（overload-doc.pdf）はコミットする
+overload-test.pdf

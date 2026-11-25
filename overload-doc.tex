@@ -1,0 +1,506 @@
+\documentclass[lualatex,ja = standard,a4paper,11pt]{bxjsarticle}
+\usepackage{amsmath,amssymb}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage[hidelinks]{hyperref}
+\usepackage{overload}
+\usepackage{url}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+
+\lstset{
+  basicstyle={\ttfamily},
+  identifierstyle={\small},
+  commentstyle={\small\itshape},
+  keywordstyle={\small\bfseries},
+  ndkeywordstyle={\small},
+  stringstyle={\small\ttfamily},
+  frame={tb},
+  breaklines=true,
+  columns=[l]{fullflexible},
+  numbers=left,
+  xrightmargin=0pt,
+  xleftmargin=3\zw,
+  numberstyle={\scriptsize},
+  stepnumber=1,
+  numbersep=1\zw,
+  lineskip={-5pt}
+}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+% 制御綴と引数の表示
+\newcommand\cs[1]{\texttt{\textbackslash #1}}
+\newcommand\marg[1]{\texttt{\{}〈#1〉\texttt{\}}}
+
+% 出力例: 左にソース，右にそのソースを実際に組版した結果を並べる
+\newtcblisting{example}{%
+  enhanced,sharp corners,colback=white,colframe=black,
+  boxrule=0pt,toprule=0.4pt,bottomrule=0.4pt,leftrule=0pt,rightrule=0pt,
+  left=0pt,right=0pt,top=2pt,bottom=2pt,
+  listing side text,righthand width=0.36\linewidth,sidebyside gap=2\zw,
+  listing options={basicstyle={\ttfamily\small},numbers=none,frame=none,
+    xleftmargin=0pt,lineskip={0pt},keepspaces=true}%
+}
+
+\title{\texttt{overload} パッケージ}
+\author{安藤 遼哉（Ryoya Ando）\\\url{https://ryoya9826.github.io/}}
+\date{\today}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+\noindent
+\texttt{overload.sty} は，引数の個数に応じて本体が切り替わるコマンドを定義するためのパッケージです．
+1つのコマンド名に，引数が0個のとき，1個のとき，2個のときの本体を別々に登録できます．
+呼び出す側は波括弧の引数を並べるだけで，個数に対応する本体が選ばれます．
+\end{abstract}
+
+\tableofcontents
+
+\section{着想}
+
+本パッケージは，次の記事の着想をもとに作成しました．
+2021年8月時点で記事に実装は公開されておらず，本パッケージのコードは作者が独自に記述したものです．
+
+\begin{itemize}
+\item \textbf{記事:} \LaTeX でマクロの引数をオーバーロード
+\item \textbf{URL:} \url{https://hak7a3.hatenablog.com/entry/2015/05/24/202509}
+\end{itemize}
+
+\section{主な特徴}
+
+\begin{itemize}
+\item \textbf{引数の個数による分岐:}
+  引数が0個から9個までの本体を，個数ごとに登録できます．
+\item \textbf{終端の印が不要:}
+  コマンドの直後に続く波括弧のグループを先読みして数えるので，呼び出しの末尾に印を付ける必要はありません．
+\item \textbf{入れ子の呼び出し:}
+  引数をトークン列のまま本体へ渡すので，引数の中で同じコマンドを呼んでも結果は崩れません．
+\item \textbf{見出しでの利用:}
+  コマンドは \verb|\protected| で定義されるので，見出しやキャプションの中でも使えます．
+\item \textbf{誤りの検出:}
+  登録していない個数で呼んだときや，同じ個数を2回登録したときにエラーを出します．
+\end{itemize}
+
+\section{ライセンス}
+
+MIT License の下で配布・改変が可能です．
+詳細は同梱の \texttt{LICENSE} を参照してください．
+
+\section{使い方}
+
+\subsection{動作環境}
+
+pdf\LaTeX，Lua\LaTeX，Xe\LaTeX，p\LaTeX，up\LaTeX で動作を確かめています．
+内部で e-\TeX 拡張（\verb|\protected|，\verb|\unexpanded|，\verb|\ifcsname|）を使いますが，現在配布されている \LaTeX はすべてこれを備えています．
+ほかのパッケージには依存しません．
+
+\subsection{読み込み}
+
+\texttt{overload.sty} を文書と同じディレクトリか，\TeX が探索するディレクトリに置き，プリアンブルで読み込みます．
+
+\begin{lstlisting}
+\usepackage{overload}
+\end{lstlisting}
+
+\subsection{最初の例}
+
+コマンドを作る手順は2段階です．
+まず \verb|\newoverload| でコマンドの名前を宣言し，次に \verb|\addoverload| で引数の個数ごとに本体を登録します．
+本体では，\verb|\newcommand| と同じく \verb|#1|，\verb|#2| が使えます．
+
+\begin{example}
+\newoverload{\hoge}
+\addoverload{\hoge}{0}{（引数なし）}
+\addoverload{\hoge}{1}{一つ目は #1}
+\addoverload{\hoge}{2}{一つ目は #1，
+  二つ目は #2}
+
+\hoge
+
+\hoge{A}
+
+\hoge{A}{B}
+\end{example}
+
+\textbf{注意}: 引数はすべて波括弧で囲んでください．
+\verb|\newcommand| で定義したコマンドと違い，\verb|\hoge A| の \verb|A| は引数として数えません．
+
+\section{コマンド}
+
+名前を受け取る引数は，\verb|{\hoge}| と \verb|{hoge}| のどちらの形でも書けます．
+本パッケージによる定義は，\verb|\newcommand| と同じく現在のグループの中だけで有効です．
+
+\subsection{\texttt{\textbackslash newoverload}}
+
+\begin{quote}
+\cs{newoverload}\marg{名前}
+\end{quote}
+
+未定義のコマンドを，オーバーロードされたコマンドとして宣言します．
+宣言した直後は，本体が1つも登録されていない状態です．
+その名前のコマンドが定義済みのとき，名前が \verb|\relax| のとき，名前が \verb|\end| で始まるときは，\verb|\newcommand| と同じエラーになります．
+
+\subsection{\texttt{\textbackslash renewoverload}}
+
+\begin{quote}
+\cs{renewoverload}\marg{名前}
+\end{quote}
+
+定義済みのコマンドを，オーバーロードされたコマンドとして宣言し直します．
+元の定義は失われます．
+対象がすでにオーバーロードされたコマンドなら，登録済みの本体もすべて消えます．
+未定義の名前を指定するとエラーになります．
+
+\subsection{\texttt{\textbackslash addoverload}}
+
+\begin{quote}
+\cs{addoverload}\marg{名前}\marg{個数}\marg{本体}
+\end{quote}
+
+引数がちょうど〈個数〉個のときの本体を登録します．
+
+\begin{itemize}
+\item 〈名前〉は，\verb|\newoverload| か \verb|\renewoverload| で宣言済みのコマンドです．
+\item 〈個数〉は0から9までの整数です．
+\item 〈本体〉では \verb|#1| から \verb|#|〈個数〉までが使えます．引数には段落の区切りを含められます．
+\end{itemize}
+
+同じ個数の本体を2回登録するとエラーになります．
+登録し直すときは，\verb|\renewoverload| で宣言からやり直してください．
+エラーになったときは，〈本体〉は読み捨てられます．
+
+\subsection{\texttt{\textbackslash enddelim}}
+
+\begin{quote}
+\cs{enddelim}
+\end{quote}
+
+引数の列をここで終えると明示します．
+それ自体は何も出力しません．
+使う場面は\ref{sec:enddelim}節で説明します．
+
+\section{引数の数え方}\label{sec:counting}
+
+\subsection{数える規則}
+
+呼び出されたコマンドは，次の規則で引数を取り込みます．
+
+\begin{enumerate}
+\item コマンドの直後から，波括弧で囲まれたグループを1つずつ引数として取り込みます．
+\item 次のトークンが \verb|{| でなければ，そこで終えます．空白も区切りになります．
+\item 取り込んだ個数が，登録済みの最大の個数に達したら，そこで終えます．
+\end{enumerate}
+
+取り込みを終えると，その個数に対応する本体を呼びます．
+対応する本体が登録されていなければ，エラーになります．
+
+\subsection{空白による区切り}
+
+規則2により，引数の間に空白を入れると，そこで引数の列が終わります．
+残った空白とグループは，通常の本文として処理されます．
+
+\begin{example}
+\newoverload{\hoge}
+\addoverload{\hoge}{1}{[1:#1]}
+\addoverload{\hoge}{2}{[2:#1,#2]}
+
+\hoge{A}{B}
+
+\hoge{A} {B}
+\end{example}
+
+一方，コマンド名の直後の空白は，\TeX が字句を読む段階で取り除きます．
+そのため \verb|\hoge {A}| は \verb|\hoge{A}| と同じ結果になります．
+
+\subsection{最大の個数での打ち切り}
+
+規則3により，登録済みの最大の個数を超えるグループは引数になりません．
+
+\begin{example}
+\newoverload{\hoge}
+\addoverload{\hoge}{1}{[1:#1]}
+\addoverload{\hoge}{2}{[2:#1,#2]}
+
+\hoge{A}{B}{C}
+\end{example}
+
+\subsection{\texttt{\textbackslash enddelim} による区切り}\label{sec:enddelim}
+
+直後に続くグループを引数にしたくない場合は，\verb|\enddelim| で区切ります．
+
+\begin{example}
+\newoverload{\hoge}
+\addoverload{\hoge}{1}{[1:#1]}
+\addoverload{\hoge}{2}{[2:#1,#2]}
+
+\hoge{A}\enddelim{\itshape B}
+\end{example}
+
+\section{出力例}
+
+この節の例は，いずれもそのまま文書に貼って使えます．
+数式の例は \texttt{amsmath} と \texttt{amssymb} を読み込んでいる前提です．
+
+\subsection{個数で形が変わる記号}
+
+微分の記号は，引数の個数で形が変わる記号の典型です．
+\verb|\newcommand| では個数ごとに別の名前が必要ですが，本パッケージでは1つの名前で書けます．
+
+\begin{example}
+\newoverload{\dd}
+\addoverload{\dd}{1}{d#1}
+\addoverload{\dd}{2}{\frac{d#1}{d#2}}
+\addoverload{\dd}{3}{%
+  \frac{d^{#3}#1}{d#2^{#3}}}
+
+$\dd{x}$,\quad
+$\dd{f}{x}$,\quad
+$\dd{f}{x}{2}$
+\end{example}
+
+\subsection{引数を省くと既定の形になる記号}
+
+引数0個の本体を登録すると，引数なしの呼び出しが使えます．
+次の例では，実数の集合と，その $n$ 次元版を同じ名前で書きます．
+
+\begin{example}
+\newoverload{\R}
+\addoverload{\R}{0}{\mathbb{R}}
+\addoverload{\R}{1}{\mathbb{R}^{#1}}
+
+$x \in \R$,\quad $v \in \R{n}$
+\end{example}
+
+\subsection{既存のコマンドの置き換え}
+
+\verb|\vec| は \LaTeX が最初から定義しているコマンドです．
+定義済みのコマンドを置き換えるときは，\verb|\newoverload| の代わりに \verb|\renewoverload| を使います．
+
+\begin{example}
+\renewoverload{\vec}
+\addoverload{\vec}{1}{\mathbf{#1}}
+\addoverload{\vec}{2}{\mathbf{#1}_{#2}}
+
+$\vec{a}$,\quad $\vec{a}{i}$
+\end{example}
+
+\subsection{本体から別のオーバーロードを呼ぶ}
+
+本体の中で，オーバーロードされたコマンドを呼べます．
+次の例の \verb|\ip| は内積の記号で，引数が1個なら同じベクトルどうしの内積にします．
+
+\begin{example}
+\newoverload{\ip}
+\addoverload{\ip}{2}{\langle #1, #2 \rangle}
+\addoverload{\ip}{1}{\ip{#1}{#1}}
+
+$\ip{u}{v}$,\quad $\ip{u}$
+\end{example}
+
+\subsection{引数の中での呼び出し}
+
+引数の中に，同じコマンドや別のオーバーロードされたコマンドを書けます．
+外側の個数は外側の波括弧だけで決まり，内側の呼び出しは内側で改めて数えられます．
+
+\begin{example}
+\newoverload{\hoge}
+\addoverload{\hoge}{1}{[1:#1]}
+\addoverload{\hoge}{2}{[2:#1,#2]}
+
+\hoge{\hoge{a}{b}}{\hoge{c}}
+\end{example}
+
+\subsection{マクロの中での定義}
+
+\verb|\newcommand| などの本体の中で \verb|\addoverload| を使うときは，\verb|#1| を \verb|##1| と書きます．
+これは，マクロの中でマクロを定義するときの \TeX の規則です．
+
+\begin{example}
+\newcommand\setupperson{%
+  \newoverload{\person}%
+  \addoverload{\person}{1}{##1 さん}%
+  \addoverload{\person}{2}{##1 ##2 さん}%
+}
+\setupperson
+
+\person{山田}，\person{山田}{太郎}
+\end{example}
+
+\section{エラーメッセージ}
+
+本パッケージが出すエラーと対処を，表\ref{tab:errors}にまとめます．
+メッセージ中の \verb|\hoge| と $n$ は，実際のコマンド名と個数に置き換わります．
+
+\begin{table}[H]
+\centering
+\caption{エラーメッセージと対処}\label{tab:errors}
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.36\linewidth}LL}
+\hline
+メッセージ & 原因 & 対処 \\
+\hline
+\texttt{No overload of \textbackslash hoge takes $n$ argument(s)}
+  & $n$ 個の引数で呼んだが，その個数の本体がない
+  & \cs{addoverload} で登録する．または呼び出しの波括弧と空白を見直す \\
+\texttt{\textbackslash hoge already has an overload for $n$ argument(s)}
+  & 同じ個数の本体を2回登録した
+  & 重複を消す．登録し直すなら \cs{renewoverload} からやり直す \\
+\texttt{\textbackslash hoge is not an overloaded command}
+  & 宣言していないコマンドに \cs{addoverload} を使った
+  & 先に \cs{newoverload} で宣言する \\
+\texttt{The number of arguments must be between 0 and 9}
+  & 個数に0から9以外を指定した
+  & 個数を9以下にする \\
+\texttt{Command \textbackslash hoge already defined}（\LaTeX のエラー）
+  & 定義済みの名前に \cs{newoverload} を使った
+  & 別の名前にする．置き換えるなら \cs{renewoverload} を使う \\
+\texttt{Command \textbackslash hoge undefined}
+  & 未定義の名前に \cs{renewoverload} を使った
+  & \cs{newoverload} を使う \\
+\hline
+\end{tabularx}
+\end{table}
+
+最初のエラーは，個数の数え違いで起きることが多いエラーです．
+たとえば1個と3個だけを登録したコマンドを \verb|\hoge{A}{B}| と呼ぶと，2個と数えられてエラーになります．
+引数の間に空白を入れた場合も，意図より少ない個数で数えられます．
+
+\section{制約と注意}
+
+\subsection{展開だけが許される場所}
+
+オーバーロードされたコマンドは，次のトークンを先読みするために代入の操作を使います．
+そのため，\TeX が展開だけを許す次の場所では動きません．
+
+\begin{itemize}
+\item \textbf{\texttt{\textbackslash edef} の中:}
+  結果の文字列は得られず，コマンドはそのままの形で残ります．
+\item \textbf{数値や長さを書く位置:}
+  \verb|\setcounter| や \verb|\hspace| の引数には使えません．値を返すコマンドは \verb|\newcommand| で定義してください．
+\item \textbf{波括弧のない添字:}
+  \verb|$x^\hoge{A}$| はエラーになります．\verb|$x^{\hoge{A}}$| と書けば使えます．
+\item \textbf{表のセルの先頭:}
+  本体が \verb|\multicolumn| や \verb|\hline| になるコマンドは使えません．文字や数式を出力するコマンドは，セルの中で使えます．
+\end{itemize}
+
+見出しやキャプションの中では使えます．
+コマンドは \verb|\protected| で定義されるので，目次へ書き出すときに壊れません．
+
+\subsection{PDF のしおり}
+
+\texttt{hyperref} は，見出しから PDF のしおりを作るときに，展開できないコマンドを取り除きます．
+オーバーロードされたコマンドも取り除かれ，引数の中身だけがしおりに残ります．
+しおりの文字列を指定したい場合は，\verb|\texorpdfstring| を使います．
+
+\begin{lstlisting}
+\section{\texorpdfstring{$\vec{a}{i}$ の性質}{a\_i の性質}}
+\end{lstlisting}
+
+\subsection{\texttt{\textbackslash bgroup} との区別}
+
+\verb|\bgroup| は \verb|{| と同じ働きをするコマンドです．
+先読みはこの2つを区別できないので，コマンドの直後に \verb|\bgroup| があると，引数として取り込もうとしてグループの対応が崩れます．
+直後に \verb|\bgroup| を置く場合は，間に \verb|\enddelim| を挟んでください．
+
+\begin{lstlisting}
+\hoge{A}\enddelim\bgroup\bfseries B\egroup
+\end{lstlisting}
+
+\subsection{引数の上限}
+
+\TeX のマクロが受け取れる引数は9個までです．
+\verb|\addoverload| の個数にも同じ上限があります．
+
+\section{ほかの方法との比較}
+
+引数の個数で振る舞いを変える方法は，本パッケージのほかにもあります．
+表\ref{tab:compare}に，標準的な2つの方法との違いをまとめます．
+
+\begin{table}[H]
+\centering
+\caption{引数の個数で振る舞いを変える方法}\label{tab:compare}
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{0.24\linewidth}>{\raggedright\arraybackslash}p{0.24\linewidth}L}
+\hline
+方法 & 呼び出しの形 & 特徴 \\
+\hline
+\cs{newcommand} の省略可能引数
+  & \texttt{\textbackslash foo[A]\{B\}}
+  & 省略できるのは先頭の1個だけです．省略可能引数は角括弧で書きます． \\
+\cs{NewDocumentCommand}
+  & \texttt{\textbackslash foo[A][B]\{C\}}
+  & 省略可能引数を複数取れます．有無による分岐は，本体の中に \cs{IfValueTF} で書きます． \\
+\texttt{overload}
+  & \texttt{\textbackslash foo\{A\}\{B\}}
+  & 引数はすべて波括弧で書きます．個数ごとの本体を別々に登録します． \\
+\hline
+\end{tabularx}
+\end{table}
+
+本パッケージが向いているのは，個数ごとに本体の形が大きく変わり，呼び出しを波括弧だけで書きたい場合です．
+省略時の既定値を1つ決めれば済む場合は，\verb|\newcommand| の省略可能引数のほうが簡単です．
+展開可能なコマンドが必要な場合は，本パッケージは使えません．
+
+\section{仕組み}
+
+\subsection{先読みによる引数の収集}
+
+\verb|\newoverload| は，指定された名前を，引数を集める内部マクロへの入口として定義します．
+入口が呼ばれると，次の処理を繰り返します．
+
+\begin{enumerate}
+\item \verb|\futurelet| で，次のトークンを取り除かずに調べます．
+\item それが \verb|{| なら，グループを1つ引数として読み，内部のリストの末尾に加えます．
+\item \verb|{| でないか，個数が登録済みの最大に達したら，繰り返しを終えます．
+\end{enumerate}
+
+\verb|\futurelet| は空白を読み飛ばしません．
+引数の間の空白で収集が終わるのは，この性質によります．
+空白を読み飛ばす実装にすると，呼び出しの後ろの空白が消えたり，離れた位置のグループを引数に取り込んだりします．
+
+\subsection{引数の受け渡し}
+
+収集した引数は，展開せずにトークン列のまま保持します．
+繰り返しを終えると，個数に対応する本体の直後に，保持していた引数を元の形で並べます．
+本体は \verb|\newcommand| で定義した通常のマクロとして，その引数を受け取ります．
+
+収集している間は，利用者が書いたコードは実行されません．
+引数の中の呼び出しは，本体が展開されたあとで初めて動き，自分の引数を新しく数えます．
+この順序により，入れ子の呼び出しが外側の状態を書き換えることはありません．
+
+\subsection{内部名}
+
+内部で定義する名前は，すべて \verb|\overload@| で始まります．
+個数ごとの本体は \verb|\overload@def@|〈名前〉\verb|@|〈個数〉に保存します．
+利用者が付けた名前がそのまま内部名の先頭に来ることはないので，\LaTeX の内部コマンドと衝突しません．
+
+\section{旧版からの移行}
+
+Version 1.0 以前は，パッケージ名が \texttt{myoverload} で，呼び出しの末尾に \verb|\enddelim| が必須でした．
+Version 2.0 での変更点は次のとおりです．
+
+\begin{itemize}
+\item パッケージ名が \texttt{overload} に変わりました．旧版の文書では，読み込むパッケージ名を \texttt{myoverload} から \texttt{overload} に書き換えてください．
+\item \verb|\enddelim| は省略できます．付けたままの文書も，同じ結果になります．
+\item 波括弧で囲まない引数は数えなくなりました．\verb|\hoge A B\enddelim| は \verb|\hoge{A}{B}| に書き換えてください．
+\item 登録していない個数で呼ぶと，エラーになります．以前は，引数がそのまま出力されていました．
+\item 引数の中で同じコマンドを呼んでも，外側の引数は壊れません．
+\end{itemize}
+
+\section{更新履歴}
+
+\begin{description}
+\item[Version 2.0 (2026-11-25)] \texttt{overload} に改名．先読みによる引数の判定に変更し，\verb|\enddelim| を省略可能にした．内部名の衝突，入れ子の呼び出しでの引数の破損，登録していない個数でエラーが出ない問題を修正．
+\item[Version 0.3 (2026-04-08)] 実装の整理（内部共通化・\verb|\ifcase| による分岐）．
+\item[Version 1.0 (2021-11-10)] CTAN 掲載向けの準備．
+\item[Version 0.2 (2021-08-02)] \verb|\renewoverload| を追加．
+\item[Version 0.1 (2021-08-01)] 初版．
+\end{description}
+
+\end{document}
